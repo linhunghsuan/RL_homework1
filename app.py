@@ -9,7 +9,6 @@ start_pos = None
 goal_pos = []
 dead_pos = []
 policy = {}  # 全局策略變數
-
 @app.route('/')
 def index():
     return render_template('index.html', grid_size=grid_size)
