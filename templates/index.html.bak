@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GridWorld Setup</title>
+    <script>
+        let gridSize = 5;
+
+        function createGrid() {
+            const container = document.getElementById("grid-container");
+            container.innerHTML = "";
+            container.style.gridTemplateColumns = `repeat(${gridSize}, 40px)`;
+
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    let cell = document.createElement("div");
+                    cell.className = "grid-cell";
+                    cell.dataset.x = i;
+                    cell.dataset.y = j;
+                    cell.onclick = () => selectCell(i, j);
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        function updateGridSize() {
+            gridSize = document.getElementById("grid-size").value;
+            fetch("/set_grid", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ size: gridSize })
+            }).then(response => response.json())
+              .then(() => createGrid());
+        }
+
+        function selectCell(x, y) {
+            let cellType = document.querySelector('input[name="cell-type"]:checked').value;
+            fetch("/set_cell", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ x, y, type: cellType })
+            }).then(response => response.json())
+              .then(data => {
+                  let cell = document.querySelector(`[data-x='${x}'][data-y='${y}']`);
+                  if (cellType === "start") {
+                      document.querySelectorAll(".grid-cell").forEach(c => c.classList.remove("start"));
+                      cell.classList.add("start");
+                  } else if (cellType === "goal") {
+                      cell.classList.add("goal");
+                  } else if (cellType === "dead") {
+                      cell.classList.add("dead");
+                  }
+              });
+        }
+
+        window.onload = () => createGrid();
+    </script>
+    <style>
+        .container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .grid {
+            display: grid;
+            gap: 2px;
+            margin-top: 10px;
+        }
+        .grid-cell {
+            width: 40px;
+            height: 40px;
+            background-color: lightgray;
+            display: inline-block;
+            border: 1px solid black;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .start { background-color: green !important; }
+        .goal { background-color: red !important; }
+        .dead { background-color: blue !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>GridWorld Setup</h2>
+        <label>Grid Size:</label>
+        <input type="number" id="grid-size" value="5" min="3" max="20">
+        <button onclick="updateGridSize()">Set Size</button>
+
+        <div>
+            <label><input type="radio" name="cell-type" value="start" checked> Start (Green)</label>
+            <label><input type="radio" name="cell-type" value="goal"> Goal (Red)</label>
+            <label><input type="radio" name="cell-type" value="dead"> Dead (Blue)</label>
+        </div>
+
+        <div id="grid-container" class="grid"></div>
+    </div>
+</body>
+</html>

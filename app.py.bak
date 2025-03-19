@@ -1,0 +1,101 @@
+from flask import Flask, render_template, request, jsonify
+import numpy as np
+
+app = Flask(__name__)
+
+grid_size = 5  # Default grid size
+grid = np.zeros((grid_size, grid_size))
+start_pos = None
+goal_pos = []
+dead_pos = []
+
+@app.route('/')
+def index():
+    return render_template('index.html', grid_size=grid_size)
+
+@app.route('/set_grid', methods=['POST'])
+def set_grid():
+    global grid_size, grid, start_pos, goal_pos, dead_pos
+    data = request.json
+    grid_size = int(data['size'])
+    grid = np.zeros((grid_size, grid_size))
+    start_pos = None
+    goal_pos = []
+    dead_pos = []
+    return jsonify({'message': 'Grid size updated', 'grid_size': grid_size})
+
+@app.route('/set_cell', methods=['POST'])
+def set_cell():
+    global start_pos, goal_pos, dead_pos
+    data = request.json
+    x, y, cell_type = data['x'], data['y'], data['type']
+    
+    if cell_type == 'start':
+        start_pos = (x, y)
+    elif cell_type == 'goal':
+        goal_pos.append((x, y))
+    elif cell_type == 'dead':
+        dead_pos.append((x, y))
+    
+    return jsonify({'message': 'Cell updated', 'start': start_pos, 'goal': goal_pos, 'dead': dead_pos})
+
+@app.route('/get_grid', methods=['GET'])
+def get_grid():
+    return jsonify({
+        'grid_size': grid_size,
+        'start': start_pos,
+        'goal': goal_pos,
+        'dead': dead_pos
+    })
+@app.route('/get_policy', methods=['GET'])
+def get_policy():
+    actions = ['↑', '↓', '←', '→']
+    policy = {}
+    
+    for i in range(grid_size):
+        for j in range(grid_size):
+            if (i, j) not in goal_pos and (i, j) not in dead_pos:
+                policy[(i, j)] = np.random.choice(actions)
+    
+    return jsonify({'policy': policy})
+
+@app.route('/evaluate_policy', methods=['POST'])
+def evaluate_policy():
+    gamma = 0.9  # 折扣因子
+    threshold = 0.0001  # 收斂閥值
+    V = np.zeros((grid_size, grid_size))
+    
+    while True:
+        delta = 0
+        new_V = np.copy(V)
+        
+        for i in range(grid_size):
+            for j in range(grid_size):
+                if (i, j) in goal_pos or (i, j) in dead_pos:
+                    continue
+                
+                action = policy.get((i, j), '↑')  # 預設上移
+                next_i, next_j = i, j
+                if action == '↑': next_i = max(i - 1, 0)
+                if action == '↓': next_i = min(i + 1, grid_size - 1)
+                if action == '←': next_j = max(j - 1, 0)
+                if action == '→': next_j = min(j + 1, grid_size - 1)
+                
+                reward = -1  # 每一步的固定獎勵
+                if (next_i, next_j) in goal_pos:
+                    reward = 100
+                elif (next_i, next_j) in dead_pos:
+                    reward = -100
+                
+                new_V[i, j] = reward + gamma * V[next_i, next_j]
+                delta = max(delta, abs(new_V[i, j] - V[i, j]))
+        
+        V = new_V
+        if delta < threshold:
+            break
+    
+    return jsonify({'values': V.tolist()})
+
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)
